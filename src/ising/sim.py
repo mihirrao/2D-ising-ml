@@ -86,9 +86,8 @@ def sample_configs(
     method: str = "wolff",
     J: float = 1.0,
     h: float = 0.0,
-    seed: int = 0,
 ):
-    rng = np.random.default_rng(seed)
+    rng = np.random.default_rng()
     beta = 1.0 / T
     spins = make_lattice(L, rng=rng)
 

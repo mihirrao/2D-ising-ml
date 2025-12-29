@@ -42,7 +42,7 @@ Each configuration is stored as a 32×32 array of spin values (-1 or +1), along 
 - Magnetization per spin (m)
 - Energy per spin (e)
 
-The dataset is split into train/validation/test sets (80/10/10) with a fixed random seed for reproducibility.
+The dataset is split into train/validation/test sets (80/10/10).
 
 ![Phase Transition](results/figures/phase_transition.png)
 
@@ -82,13 +82,13 @@ PCA is applied directly to the flattened 32×32 = 1024-dimensional spin configur
 *Figure 3: Magnetization vs PC1 correlation plot. The strong linear relationship (high R²) demonstrates that PC1 primarily captures the order parameter of the phase transition.*
 
 3. **3D Visualization**:
-   - PC1, PC2, PC3 scatter plot with three rotated views (0°, 45°, 90°)
+   - PC1, PC2, PC3 scatter plot in a single row with three rotated views (0°, 45°, 90° azimuth)
    - Colored by phase to visualize the 3D manifold structure
    - Interactive version available for exploration
 
 ![PCA 3D Visualization](results/figures/pca_3d_visualization.png)
 
-*Figure 4: 3D visualization of PCA showing PC1, PC2, and PC3 with three rotated views. The clear separation between ordered (blue) and disordered (red) phases is visible in the 3D manifold structure.*
+*Figure 4: 3D visualization of PCA showing PC1, PC2, and PC3. Single row with three rotated views (0°, 45°, 90°) reveals the clear separation between ordered (blue) and disordered (red) phases in the 3D manifold structure.*
 
 ### Key Findings
 
@@ -132,25 +132,24 @@ The VAE uses a convolutional encoder-decoder architecture:
 **Latent Space Analysis**:
 
 1. **Magnetization vs Latent Dimensions**:
-   - For z=1: Single latent dimension vs magnetization with R²
    - For z=4: All 4 latent dimensions vs magnetization (2×2 grid)
+   - Each panel shows one latent dimension vs magnetization with R²
    - Quantifies how well each dimension captures the order parameter
 
 ![VAE Latent vs Magnetization](results/figures/vae_latent_vs_m.png)
 
-*Figure 5: Correlation between VAE latent dimensions and magnetization. Top-left: z=1 model showing strong correlation. Remaining panels: All 4 dimensions of z=4 model, each with R² values quantifying the relationship with the order parameter.*
+*Figure 5: Correlation between VAE latent dimensions (z=4) and magnetization. 2×2 grid showing all 4 latent dimensions, each with R² values quantifying the relationship with the order parameter.*
 
 2. **Latent Space Visualization**:
    - 3 rows × 6 columns grid showing all 6 pairwise combinations of 4 latent dimensions
-   - Each row has 3 panels:
-     - Colored by phase (ordered/disordered)
-     - Colored by magnetization (viridis colormap)
-     - Colored by energy per spin (viridis colormap)
+   - Row 1: All 6 pairwise combinations colored by phase (ordered/disordered)
+   - Row 2: Same 6 pairwise combinations colored by magnetization (viridis colormap)
+   - Row 3: Same 6 pairwise combinations colored by energy per spin (viridis colormap)
    - Reveals how different latent dimensions capture different aspects of the data
 
 ![VAE Latent Space](results/figures/vae_latent_space_latent4.png)
 
-*Figure 6: Comprehensive visualization of VAE latent space for z=4 model. Each row shows a pairwise combination of latent dimensions, with three coloring schemes: phase (left), magnetization (middle), and energy (right). This reveals how different dimensions capture complementary information about the phase transition.*
+*Figure 6: Comprehensive visualization of VAE latent space for z=4 model. 3 rows × 6 columns grid: Row 1 shows all 6 pairwise combinations colored by phase, Row 2 by magnetization, and Row 3 by energy. This reveals how different dimensions capture complementary information about the phase transition.*
 
 3. **VAE PCA**:
    - PCA applied to VAE latent embeddings (z=4)
@@ -169,12 +168,12 @@ The VAE uses a convolutional encoder-decoder architecture:
 4. **3D Visualization**:
    - VAE latent dimensions 1-3 in 3D space
    - PCA of VAE latent dimensions 1-3
-   - Two rows × three columns showing rotated views
+   - Two rows × three columns (2 rows: VAE dims, PCA; 3 columns: rotated views at 0°, 45°, 90°)
    - Interactive version available for exploration
 
 ![VAE 3D Visualization](results/figures/vae_3d_visualization.png)
 
-*Figure 9: 3D visualization of VAE latent space. Top row: Direct VAE latent dimensions 1-3. Bottom row: PCA of VAE latent dimensions 1-3. Three rotated views (0°, 45°, 90°) reveal the 3D manifold structure of the learned representation.*
+*Figure 9: 3D visualization of VAE latent space. Top row: Direct VAE latent dimensions 1-3 with three rotated views. Bottom row: PCA of VAE latent dimensions 1-3 with three rotated views. Each row shows rotations at 0°, 45°, and 90° azimuth, revealing the 3D manifold structure of the learned representation.*
 
 ### Key Findings
 
@@ -225,22 +224,22 @@ The CNN uses a feature extractor followed by a classification head:
 **Linear Probe Analysis**:
 - Extracts embeddings h(x) from the feature extractor (before classification head)
 - Computes Pearson correlation (R²) between each embedding dimension and magnetization
-- Identifies top 3 dimensions with highest R²
+- Filters out invalid dimensions (NaN, Inf, or constant values)
 - Shows that learned features correlate with physical order parameter
 
 ![CNN Linear Probe](results/figures/cnn_linear_probe.png)
 
-*Figure 11: CNN linear probe analysis. Top row: Top 3 embedding dimensions vs magnetization, showing strong correlations (R² values). Bottom row: PCA of CNN embeddings (PC1 vs PC2) colored by phase, magnetization, and energy. The supervised learning task produces embeddings that capture the order parameter without explicit supervision.*
+*Figure 11: CNN linear probe analysis. PCA of CNN embeddings (PC1 vs PC2) in a 3-panel figure colored by phase (left), magnetization (middle), and energy (right). The supervised learning task produces embeddings that capture the order parameter without explicit supervision.*
 
 **3D Visualization**:
 - PCA of CNN embeddings (PC1, PC2, PC3) in 3D space
-- Three rotated views (0°, 45°, 90°)
+- Single row with three rotated views (0°, 45°, 90° azimuth)
 - Colored by phase to visualize the learned manifold
 - Interactive version available for exploration
 
 ![CNN 3D Visualization](results/figures/cnn_linear_probe_3d_visualization.png)
 
-*Figure 12: 3D visualization of PCA applied to CNN embeddings. Three rotated views show the learned manifold structure, with clear separation between ordered (blue) and disordered (red) phases in the embedding space.*
+*Figure 12: 3D visualization of PCA applied to CNN embeddings. Single row with three rotated views (0°, 45°, 90°) showing the learned manifold structure, with clear separation between ordered (blue) and disordered (red) phases in the embedding space.*
 
 ### Key Findings
 

@@ -19,12 +19,12 @@ from src.models.vae import IsingVAE
 
 
 class NPZDataset(Dataset):
-    def __init__(self, npz_path: str, split: str, seed: int = 0):
+    def __init__(self, npz_path: str, split: str):
         d = load_npz(npz_path)
         X = d["X"].astype(np.float32)  # (-1,+1)
 
         # shuffle + split
-        rng = np.random.default_rng(seed)
+        rng = np.random.default_rng()
         idx = np.arange(len(X))
         rng.shuffle(idx)
         n = len(idx)
@@ -72,7 +72,6 @@ def main():
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--beta", type=float, default=1.0,
                    help='Weight for KL divergence term')
-    p.add_argument("--seed", type=int, default=0)
     p.add_argument("--outdir", type=str, default="results/checkpoints/vae")
     p.add_argument("--early-stopping", type=int, default=5,
                    help="Early stopping patience (0 to disable)")
@@ -82,9 +81,9 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Load data once
-    train_ds = NPZDataset(args.data, "train", seed=args.seed)
-    val_ds = NPZDataset(args.data, "val", seed=args.seed)
-    test_ds = NPZDataset(args.data, "test", seed=args.seed)
+    train_ds = NPZDataset(args.data, "train")
+    val_ds = NPZDataset(args.data, "val")
+    test_ds = NPZDataset(args.data, "test")
     
     train_dl = DataLoader(train_ds, batch_size=args.batch, shuffle=True, num_workers=0)
     val_dl = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=0)
@@ -217,8 +216,8 @@ def main():
         T_full = data_full['T']
         Tc = float(data_full['Tc'])
         
-        # Get validation indices (same split as used during training)
-        rng = np.random.default_rng(args.seed)
+        # Get validation indices
+        rng = np.random.default_rng()
         idx = np.arange(len(X_full))
         rng.shuffle(idx)
         n = len(idx)

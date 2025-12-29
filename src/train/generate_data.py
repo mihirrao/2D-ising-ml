@@ -15,7 +15,6 @@ def main():
     p.add_argument("--n_samples", type=int, default=2000)
     p.add_argument("--steps_between", type=int, default=5)
     p.add_argument("--method", type=str, default="wolff", choices=["wolff", "metropolis"])
-    p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", type=str, default="data/raw/ising_L32.npz")
     p.add_argument("--Tc", type=float, default=2.269185314213022,
                    help='Critical temperature')
@@ -72,7 +71,6 @@ def main():
             n_samples=args.n_samples,
             steps_between=args.steps_between,
             method=args.method,
-            seed=args.seed + idx * 1000,
         )
         all_X.append(X)
         all_E.append(E)

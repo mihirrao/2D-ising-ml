@@ -25,8 +25,6 @@ def main():
                    help='Output directory for figures')
     p.add_argument('--n_components', type=int, default=50,
                    help='Number of principal components to compute')
-    p.add_argument('--seed', type=int, default=42,
-                   help='Random seed for reproducibility')
     args = p.parse_args()
     
     # Load data

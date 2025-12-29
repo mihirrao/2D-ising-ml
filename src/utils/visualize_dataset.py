@@ -62,8 +62,6 @@ def main():
                    help='Output directory for figure')
     p.add_argument('--n_configs', type=int, default=5,
                    help='Number of sample configurations to show')
-    p.add_argument('--seed', type=int, default=42,
-                   help='Random seed for reproducibility')
     args = p.parse_args()
     
     # Load data
@@ -136,7 +134,6 @@ def main():
         selected_Ts = np.sort(selected_Ts)[:args.n_configs]
     
     # For each selected temperature, pick a random configuration
-    np.random.seed(args.seed)
     selected_configs = []
     for temp in selected_Ts:
         indices = np.where(T == temp)[0]

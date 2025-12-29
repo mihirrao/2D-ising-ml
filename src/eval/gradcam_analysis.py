@@ -124,8 +124,6 @@ def main():
                    help='Output directory for figure')
     p.add_argument('--n_temps', type=int, default=5,
                    help='Number of temperatures to analyze')
-    p.add_argument('--seed', type=int, default=42,
-                   help='Random seed for reproducibility')
     p.add_argument('--alpha', type=float, default=0.5,
                    help='Overlay transparency (0=only heatmap, 1=only image)')
     args = p.parse_args()
@@ -145,9 +143,8 @@ def main():
     
     print(f"Loaded {len(X)} configurations at lattice size L={L}")
     
-    # Split data to get test set (same split as training)
-    # Use seed 0 to match training split
-    rng = np.random.default_rng(0)
+    # Split data to get test set
+    rng = np.random.default_rng()
     idx = np.arange(len(X))
     rng.shuffle(idx)
     n = len(idx)
@@ -230,7 +227,6 @@ def main():
         selected_Ts = np.sort(selected_Ts)[:args.n_temps]
     
     # For each temperature, pick a random sample
-    np.random.seed(args.seed)
     selected_configs = []
     selected_labels = []
     cams = []

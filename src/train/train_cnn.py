@@ -9,13 +9,13 @@ from src.ising.io import load_npz
 from src.models.cnn import IsingCNN
 
 class NPZDataset(Dataset):
-    def __init__(self, npz_path: str, split: str, seed: int = 0):
+    def __init__(self, npz_path: str, split: str):
         d = load_npz(npz_path)
         X = d["X"].astype(np.float32)  # (-1,+1)
         y = d["y_phase"].astype(np.int64)
 
         # shuffle + split
-        rng = np.random.default_rng(seed)
+        rng = np.random.default_rng()
         idx = np.arange(len(X))
         rng.shuffle(idx)
         n = len(idx)
@@ -46,15 +46,14 @@ def main():
     p.add_argument("--epochs", type=int, default=10)
     p.add_argument("--batch", type=int, default=128)
     p.add_argument("--lr", type=float, default=1e-3)
-    p.add_argument("--seed", type=int, default=0)
     p.add_argument("--outdir", type=str, default="results/checkpoints/cnn")
     p.add_argument("--early-stopping", type=int, default=0, 
                    help="Early stopping patience (0 to disable)")
     args = p.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
-    train_ds = NPZDataset(args.data, "train", seed=args.seed)
-    val_ds = NPZDataset(args.data, "val", seed=args.seed)
+    train_ds = NPZDataset(args.data, "train")
+    val_ds = NPZDataset(args.data, "val")
 
     train_dl = DataLoader(train_ds, batch_size=args.batch, shuffle=True, num_workers=0)
     val_dl = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=0)
@@ -138,8 +137,8 @@ def main():
     y_full = data['y_phase']
     Tc = float(data['Tc'])
     
-    # Get validation indices (same split as used during training)
-    rng = np.random.default_rng(args.seed)
+    # Get validation indices
+    rng = np.random.default_rng()
     idx = np.arange(len(X_full))
     rng.shuffle(idx)
     n = len(idx)
