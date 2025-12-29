@@ -1,11 +1,3 @@
-"""
-VAE 3D Visualization: Visualize VAE latent dimensions 1-3 in 3D space.
-
-This script creates a 2-panel figure:
-- Left panel: 3D scatter plot of VAE latent dimensions 1, 2, 3
-- Right panel: 3D scatter plot of PCA applied to VAE latent dimensions 1-3
-"""
-
 import argparse
 import numpy as np
 import torch
@@ -33,31 +25,26 @@ def main():
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load data
     print(f"Loading data from {args.data}...")
     data = load_npz(args.data)
     X = data['X']
-    y_phase = data['y_phase']  # phase labels (0=disordered, 1=ordered)
+    y_phase = data['y_phase']
     L = int(data['L'])
     
-    # Use full dataset for visualizations
     X_full = X
     y_full = y_phase
     
     print(f"Using full dataset: {len(X_full)} samples")
     
-    # Load zdim=4 model and encode data (with caching)
     checkpoint_path = os.path.join(args.checkpoint_dir, 'latent_4', 'best.pt')
     
     if not os.path.exists(checkpoint_path):
         print(f"Error: Checkpoint not found: {checkpoint_path}")
         return
     
-    # Check for cached embeddings
     cache_dir = os.path.join(args.outdir, '..', 'cache')
     os.makedirs(cache_dir, exist_ok=True)
     
-    # Create hash of checkpoint and data file paths for cache key
     checkpoint_hash = hashlib.md5(checkpoint_path.encode()).hexdigest()[:8]
     data_hash = hashlib.md5(args.data.encode()).hexdigest()[:8]
     cache_file = os.path.join(cache_dir, f'vae_embeddings_latent4_{data_hash}_{checkpoint_hash}.npz')
@@ -86,18 +73,14 @@ def main():
         print(f"  Encoded {len(z_np)} samples")
         print(f"  Latent space shape: {z_np.shape}")
         
-        # Save to cache
         print(f"  Saving embeddings to cache: {cache_file}")
         np.savez(cache_file, embeddings=z_np)
     
-    # Extract dimensions 1-3 (indices 0, 1, 2)
-    z_dims_1_3 = z_np[:, :3]  # First 3 dimensions
+    z_dims_1_3 = z_np[:, :3]
     
-    # Separate by phase label
     ordered_mask = y_full == 1
     disordered_mask = y_full == 0
     
-    # Run PCA on dimensions 1-3
     print("\nRunning PCA on VAE latent dimensions 1-3...")
     scaler = StandardScaler()
     z_dims_1_3_scaled = scaler.fit_transform(z_dims_1_3)
@@ -109,7 +92,6 @@ def main():
     print(f"  PC2 explains {explained_variance[1]:.2%} of variance")
     print(f"  PC3 explains {explained_variance[2]:.2%} of variance")
     
-    # Set publication-quality sans-serif style
     plt.rcParams.update({
         'font.size': 12,
         'axes.labelsize': 14,
@@ -121,22 +103,15 @@ def main():
         'text.usetex': False,
     })
     
-    # Get colors from RdYlBu_r colormap (same as other plots)
     cmap = plt.get_cmap('RdYlBu_r')
     blue_color = cmap(0.0)[:3]
     red_color = cmap(1.0)[:3]
     
-    # Create 2x3 grid: 2 rows (VAE dims, PCA) x 3 columns (original, rotated views)
     print("\nCreating 3D visualization with multiple rotated views...")
     fig = plt.figure(figsize=(24, 16))
     
-    # Define rotation angles (azimuth around z-axis)
-    rotations = [0, 45, 90]  # Original, 45°, 90°
+    rotations = [0, 45, 90]
     
-    # Row 1: VAE latent dimensions 1-3 (with 3 different rotations)
-    # Row 2: PCA of VAE latent dimensions 1-3 (with 3 different rotations)
-    
-    # Row 1: VAE latent dimensions 1-3
     for col_idx, azim in enumerate(rotations):
         ax1 = fig.add_subplot(2, 3, col_idx + 1, projection='3d')
         
@@ -157,20 +132,17 @@ def main():
         ax1.zaxis.set_rotate_label(True)
         ax1.zaxis.labelpad = 12
         
-        # Add title indicating rotation
         if azim == 0:
             ax1.set_title('VAE Latent Dims 1-3', fontsize=13, pad=10)
         else:
             ax1.set_title(f'VAE Latent Dims 1-3 (Rotated {azim}° about z-axis)', fontsize=13, pad=10)
         
-        # Only show legend in first column
         if col_idx == 0:
             ax1.legend(loc='upper left', fontsize=10, frameon=True, fancybox=False,
                       edgecolor='black')
         ax1.grid(True, alpha=0.3)
-        ax1.view_init(elev=20, azim=azim)  # Set rotation
+        ax1.view_init(elev=20, azim=azim)
     
-    # Row 2: PCA of VAE latent dimensions 1-3
     for col_idx, azim in enumerate(rotations):
         ax2 = fig.add_subplot(2, 3, col_idx + 4, projection='3d')
         
@@ -191,21 +163,17 @@ def main():
         ax2.zaxis.set_rotate_label(True)
         ax2.zaxis.labelpad = 12
         
-        # Add title indicating rotation
         if azim == 0:
             ax2.set_title('VAE PCA', fontsize=13, pad=10)
         else:
             ax2.set_title(f'VAE PCA (Rotated {azim}° about z-axis)', fontsize=13, pad=10)
         
-        # Only show legend in first column
         if col_idx == 0:
             ax2.legend(loc='upper left', fontsize=10, frameon=True, fancybox=False,
                       edgecolor='black')
         ax2.grid(True, alpha=0.3)
-        ax2.view_init(elev=20, azim=azim)  # Set rotation
+        ax2.view_init(elev=20, azim=azim)
     
-    # Don't use tight_layout for 3D plots as it can clip z-axis labels
-    # Instead, adjust subplot parameters manually to give more space on the right for z-axis labels
     plt.subplots_adjust(left=0.05, right=0.75, bottom=0.05, top=0.95, hspace=-0.2, wspace=0.25)
     os.makedirs(args.outdir, exist_ok=True)
     output_path = os.path.join(args.outdir, 'vae_3d_visualization.png')

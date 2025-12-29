@@ -1,16 +1,8 @@
-"""
-VAE 3D Interactive Visualization: Interactive rotatable 3D plots of VAE latent space.
-
-This script creates interactive 3D scatter plots that can be rotated in real-time.
-Use mouse to rotate, zoom, and pan the plots.
-"""
-
 import argparse
 import numpy as np
 import torch
 import matplotlib
-# Use interactive backend (not Agg) for live rotation
-matplotlib.use('TkAgg')  # or 'Qt5Agg' depending on your system
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.decomposition import PCA
@@ -31,31 +23,26 @@ def main():
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load data
     print(f"Loading data from {args.data}...")
     data = load_npz(args.data)
     X = data['X']
-    y_phase = data['y_phase']  # phase labels (0=disordered, 1=ordered)
+    y_phase = data['y_phase']
     L = int(data['L'])
     
-    # Use full dataset for visualizations
     X_full = X
     y_full = y_phase
     
     print(f"Using full dataset: {len(X_full)} samples")
     
-    # Load zdim=4 model and encode data (with caching)
     checkpoint_path = os.path.join(args.checkpoint_dir, 'latent_4', 'best.pt')
     
     if not os.path.exists(checkpoint_path):
         print(f"Error: Checkpoint not found: {checkpoint_path}")
         return
     
-    # Check for cached embeddings
     cache_dir = os.path.join('results', 'cache')
     os.makedirs(cache_dir, exist_ok=True)
     
-    # Create hash of checkpoint and data file paths for cache key
     checkpoint_hash = hashlib.md5(checkpoint_path.encode()).hexdigest()[:8]
     data_hash = hashlib.md5(args.data.encode()).hexdigest()[:8]
     cache_file = os.path.join(cache_dir, f'vae_embeddings_latent4_{data_hash}_{checkpoint_hash}.npz')
@@ -84,18 +71,14 @@ def main():
         print(f"  Encoded {len(z_np)} samples")
         print(f"  Latent space shape: {z_np.shape}")
         
-        # Save to cache
         print(f"  Saving embeddings to cache: {cache_file}")
         np.savez(cache_file, embeddings=z_np)
     
-    # Extract dimensions 1-3 (indices 0, 1, 2)
-    z_dims_1_3 = z_np[:, :3]  # First 3 dimensions
+    z_dims_1_3 = z_np[:, :3]
     
-    # Separate by phase label
     ordered_mask = y_full == 1
     disordered_mask = y_full == 0
     
-    # Run PCA on dimensions 1-3
     print("\nRunning PCA on VAE latent dimensions 1-3...")
     scaler = StandardScaler()
     z_dims_1_3_scaled = scaler.fit_transform(z_dims_1_3)
@@ -107,7 +90,6 @@ def main():
     print(f"  PC2 explains {explained_variance[1]:.2%} of variance")
     print(f"  PC3 explains {explained_variance[2]:.2%} of variance")
     
-    # Set publication-quality sans-serif style
     plt.rcParams.update({
         'font.size': 12,
         'axes.labelsize': 14,
@@ -119,18 +101,15 @@ def main():
         'text.usetex': False,
     })
     
-    # Get colors from RdYlBu_r colormap (same as other plots)
     cmap = plt.get_cmap('RdYlBu_r')
     blue_color = cmap(0.0)[:3]
     red_color = cmap(1.0)[:3]
     
-    # Create two separate interactive windows
     print("\nCreating interactive 3D visualizations...")
     print("  - Use mouse to rotate (click and drag)")
     print("  - Use scroll wheel to zoom")
     print("  - Close windows to exit")
     
-    # Window 1: VAE latent dimensions 1-3
     fig1 = plt.figure(figsize=(10, 8))
     ax1 = fig1.add_subplot(111, projection='3d')
     
@@ -155,7 +134,6 @@ def main():
               edgecolor='black')
     ax1.grid(True, alpha=0.3)
     
-    # Window 2: PCA of VAE latent dimensions 1-3
     fig2 = plt.figure(figsize=(10, 8))
     ax2 = fig2.add_subplot(111, projection='3d')
     
@@ -180,7 +158,6 @@ def main():
               edgecolor='black')
     ax2.grid(True, alpha=0.3)
     
-    # Show both windows
     plt.show()
     
     print("\nInteractive visualization complete!")

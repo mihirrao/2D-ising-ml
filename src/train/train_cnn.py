@@ -11,10 +11,10 @@ from src.models.cnn import IsingCNN
 class NPZDataset(Dataset):
     def __init__(self, npz_path: str, split: str):
         d = load_npz(npz_path)
-        X = d["X"].astype(np.float32)  # (-1,+1)
+        X = d["X"].astype(np.float32)
         y = d["y_phase"].astype(np.int64)
 
-        # shuffle + split
+        rng = np.random.default_rng()
         rng = np.random.default_rng()
         idx = np.arange(len(X))
         rng.shuffle(idx)
@@ -37,7 +37,7 @@ class NPZDataset(Dataset):
     def __len__(self): return len(self.X)
 
     def __getitem__(self, i):
-        x = self.X[i][None, :, :]   # (1, L, L)
+        x = self.X[i][None, :, :]
         return torch.from_numpy(x), torch.tensor(self.y[i])
 
 def main():
@@ -62,7 +62,6 @@ def main():
     model = IsingCNN(L=train_ds.L).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
 
-    # Track metrics
     train_losses = []
     val_losses = []
     val_accs = []
@@ -72,7 +71,6 @@ def main():
     patience_counter = 0
     
     for ep in range(1, args.epochs + 1):
-        # Training
         model.train()
         train_loss_sum = 0.0
         train_count = 0
@@ -92,7 +90,6 @@ def main():
         avg_train_loss = train_loss_sum / train_count
         train_losses.append(avg_train_loss)
 
-        # Validation
         model.eval()
         val_loss_sum = 0.0
         correct, total = 0, 0
@@ -114,7 +111,6 @@ def main():
         
         print(f"Epoch {ep}: training_loss={avg_train_loss:.4f}, validation_loss={avg_val_loss:.4f}, validation_accuracy={val_acc:.4f}")
 
-        # Save best model based on validation loss
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             best_val_acc = val_acc
@@ -124,12 +120,10 @@ def main():
         else:
             patience_counter += 1
         
-        # Early stopping
         if args.early_stopping > 0 and patience_counter >= args.early_stopping:
             print(f"\nEarly stopping triggered after {ep} epochs (patience={args.early_stopping})")
             break
     
-    # Compute accuracy vs temperature for validation set
     print("\nComputing accuracy vs temperature on validation set...")
     data = load_npz(args.data)
     X_full = data['X']
@@ -137,7 +131,6 @@ def main():
     y_full = data['y_phase']
     Tc = float(data['Tc'])
     
-    # Get validation indices
     rng = np.random.default_rng()
     idx = np.arange(len(X_full))
     rng.shuffle(idx)
@@ -150,7 +143,6 @@ def main():
     T_val = T_full[val_indices]
     y_val = y_full[val_indices]
     
-    # Evaluate best model on validation set
     model.eval()
     X_tensor = torch.from_numpy(X_val[:, None, :, :].astype(np.float32)).to(device)
     
@@ -159,7 +151,6 @@ def main():
         predictions = logits.argmax(dim=1).cpu().numpy()
         correct = (predictions == y_val).astype(int)
     
-    # Compute accuracy per temperature
     T_unique = np.sort(np.unique(T_val))
     accuracies_temp = []
     T_plot = []
@@ -176,10 +167,8 @@ def main():
     accuracies_temp = np.array(accuracies_temp)
     T_plot = np.array(T_plot)
     
-    # Plot and save loss curves (publication quality, grayscale)
     plot_path = os.path.join(args.outdir, "loss_curves.png")
     
-    # Set publication-quality style
     plt.rcParams.update({
         'font.size': 12,
         'axes.labelsize': 14,
@@ -193,7 +182,6 @@ def main():
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     
-    # Left panel: Training and Validation Loss
     epochs = range(1, len(train_losses) + 1)
     ax1.plot(epochs, train_losses, 'k-', label='Training Loss', linewidth=2.0)
     ax1.plot(epochs, val_losses, 'k--', label='Validation Loss', linewidth=2.0, dashes=(5, 3))
@@ -204,7 +192,6 @@ def main():
     ax1.spines['top'].set_visible(False)
     ax1.spines['right'].set_visible(False)
     
-    # Right panel: Accuracy vs Temperature
     ax2.plot(T_plot, accuracies_temp, 'o-', color='black', markersize=5,
              linewidth=2.0, markerfacecolor='white', markeredgewidth=1.5,
              markeredgecolor='black', label='Validation Accuracy')

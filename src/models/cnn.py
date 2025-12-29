@@ -12,7 +12,6 @@ class IsingCNN(nn.Module):
             nn.AvgPool2d(2),
             nn.Flatten(),
         )
-        # compute feature dim
         with torch.no_grad():
             x = torch.zeros(1, 1, L, L)
             feat = self.net(x).shape[-1]
@@ -22,6 +21,5 @@ class IsingCNN(nn.Module):
         )
 
     def forward(self, x):
-        # x: (B, 1, L, L)
         z = self.net(x)
         return self.head(z)

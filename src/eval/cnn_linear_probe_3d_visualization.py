@@ -1,9 +1,3 @@
-"""
-CNN Linear Probe 3D Visualization: Visualize PCA of CNN embeddings in 3D space.
-
-This script creates a 3D scatter plot of PCA applied to CNN embeddings (PC1, PC2, PC3).
-"""
-
 import argparse
 import numpy as np
 import torch
@@ -31,20 +25,17 @@ def main():
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load data
     print(f"Loading data from {args.data}...")
     data = load_npz(args.data)
     X = data['X']
-    y_phase = data['y_phase']  # phase labels (0=disordered, 1=ordered)
+    y_phase = data['y_phase']
     L = int(data['L'])
     
     print(f"Loaded {len(X)} configurations at lattice size L={L}")
     
-    # Check for cached embeddings
     cache_dir = os.path.join(args.outdir, '..', 'cache')
     os.makedirs(cache_dir, exist_ok=True)
     
-    # Create hash of checkpoint and data file paths for cache key
     checkpoint_hash = hashlib.md5(args.checkpoint.encode()).hexdigest()[:8]
     data_hash = hashlib.md5(args.data.encode()).hexdigest()[:8]
     cache_file = os.path.join(cache_dir, f'cnn_embeddings_{data_hash}_{checkpoint_hash}.npz')
@@ -55,34 +46,28 @@ def main():
         embeddings = cached['embeddings']
         print(f"Loaded cached embeddings of shape: {embeddings.shape}")
     else:
-        # Load model
         print(f"Loading model from {args.checkpoint}...")
         checkpoint = torch.load(args.checkpoint, map_location=device)
         model = IsingCNN(L=checkpoint['L']).to(device)
         model.load_state_dict(checkpoint['model'])
         model.eval()
         
-        # Extract embeddings
         print("Extracting embeddings...")
         X_tensor = torch.from_numpy(X[:, None, :, :].astype(np.float32)).to(device)
         
         with torch.no_grad():
-            # Extract embeddings h(x) = model.net(x) (before classification head)
             embeddings = model.net(X_tensor).cpu().numpy()
         
         print(f"Extracted embeddings of shape: {embeddings.shape}")
         
-        # Save to cache
         print(f"Saving embeddings to cache: {cache_file}")
         np.savez(cache_file, embeddings=embeddings)
     
-    # Filter out dimensions with NaN or Inf values before PCA
     print("Filtering out invalid dimensions...")
     valid_mask = np.ones(embeddings.shape[1], dtype=bool)
     for dim in range(embeddings.shape[1]):
         if np.any(np.isnan(embeddings[:, dim])) or np.any(np.isinf(embeddings[:, dim])):
             valid_mask[dim] = False
-        # Also check for constant values (zero variance)
         elif np.std(embeddings[:, dim]) < 1e-9:
             valid_mask[dim] = False
     
@@ -98,7 +83,6 @@ def main():
         print(f"Error: Need at least 3 valid dimensions for 3D plot, found {n_valid}")
         return
     
-    # Run PCA on all valid embeddings
     print("\nRunning PCA on CNN embeddings...")
     scaler = StandardScaler()
     embeddings_scaled = scaler.fit_transform(embeddings_clean)
@@ -110,11 +94,9 @@ def main():
     print(f"  PC2 explains {explained_variance[1]:.2%} of variance")
     print(f"  PC3 explains {explained_variance[2]:.2%} of variance")
     
-    # Separate by phase label
     ordered_mask = y_phase == 1
     disordered_mask = y_phase == 0
     
-    # Set publication-quality sans-serif style
     plt.rcParams.update({
         'font.size': 12,
         'axes.labelsize': 14,
@@ -126,19 +108,15 @@ def main():
         'text.usetex': False,
     })
     
-    # Get colors from RdYlBu_r colormap (same as other plots)
     cmap = plt.get_cmap('RdYlBu_r')
     blue_color = cmap(0.0)[:3]
     red_color = cmap(1.0)[:3]
     
-    # Create 1x3 grid: 1 row x 3 columns (original, rotated views)
     print("\nCreating 3D visualization with multiple rotated views...")
     fig = plt.figure(figsize=(24, 8))
     
-    # Define rotation angles (azimuth around z-axis)
-    rotations = [0, 45, 90]  # Original, 45°, 90°
+    rotations = [0, 45, 90]
     
-    # Single row: CNN PCA with 3 different rotations
     for col_idx, azim in enumerate(rotations):
         ax = fig.add_subplot(1, 3, col_idx + 1, projection='3d')
         
@@ -159,21 +137,17 @@ def main():
         ax.zaxis.set_rotate_label(True)
         ax.zaxis.labelpad = 12
         
-        # Add title indicating rotation
         if azim == 0:
             ax.set_title('CNN PCA', fontsize=13, pad=10)
         else:
             ax.set_title(f'CNN PCA (Rotated {azim}° about z-axis)', fontsize=13, pad=10)
         
-        # Only show legend in first column
         if col_idx == 0:
             ax.legend(loc='upper left', fontsize=10, frameon=True, fancybox=False,
                       edgecolor='black')
         ax.grid(True, alpha=0.3)
-        ax.view_init(elev=20, azim=azim)  # Set rotation
+        ax.view_init(elev=20, azim=azim)
     
-    # Don't use tight_layout for 3D plots as it can clip z-axis labels
-    # Instead, adjust subplot parameters manually to give more space on the right for z-axis labels
     plt.subplots_adjust(left=0.05, right=0.80, bottom=0.05, top=0.95, wspace=0.25)
     os.makedirs(args.outdir, exist_ok=True)
     output_path = os.path.join(args.outdir, 'cnn_linear_probe_3d_visualization.png')

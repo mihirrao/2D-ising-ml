@@ -24,36 +24,30 @@ def main():
                    help='Temperature increment for temperatures near Tc')
     args = p.parse_args()
 
-    # Generate base temperatures with clean increments
     Ts_base = []
     T = args.Tmin
     while T <= args.Tmax:
-        Ts_base.append(round(T, 2))  # Round to 2 decimal places for clean values
+        Ts_base.append(round(T, 2))
         T += args.T_step
     
     Ts_base = np.array(Ts_base, dtype=np.float32)
     
-    # Add extra temperatures near Tc with clean increments
     Tc = args.Tc
     Tc_min = max(args.Tmin, Tc - args.Tc_window)
     Tc_max = min(args.Tmax, Tc + args.Tc_window)
     
-    # Generate clean temperatures around Tc
     Ts_near_Tc = []
-    # Round Tc_min and Tc_max to nearest 0.1
     Tc_min_clean = round(Tc_min, 1)
     Tc_max_clean = round(Tc_max, 1)
     
     T = Tc_min_clean
     while T <= Tc_max_clean:
-        # Only add if not already in base temperatures
         if not np.any(np.abs(Ts_base - T) < 0.01):
             Ts_near_Tc.append(round(T, 2))
         T += args.Tc_step
     
     Ts_near_Tc = np.array(Ts_near_Tc, dtype=np.float32)
     
-    # Combine and remove duplicates, then sort
     Ts = np.unique(np.concatenate([Ts_base, Ts_near_Tc])).astype(np.float32)
     Ts = np.sort(Ts)
     
@@ -80,12 +74,10 @@ def main():
     X = np.concatenate(all_X, axis=0)          # (N, L, L)
     E = np.concatenate(all_E, axis=0)          # (N,)
     M = np.concatenate(all_M, axis=0)          # (N,)
-    T = np.concatenate(all_T, axis=0)          # (N,)
+    T = np.concatenate(all_T, axis=0)
 
-    # derived labels: phase label using known Tc ≈ 2.269 for J=1, kB=1 (for convenience)
     y_phase = (T < args.Tc).astype(np.int64)
 
-    # Store also per-spin values commonly used
     Nspin = args.L * args.L
     m = (M / Nspin).astype(np.float32)
     e = (E / Nspin).astype(np.float32)

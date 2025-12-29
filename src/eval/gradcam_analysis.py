@@ -1,11 +1,3 @@
-"""
-Grad-CAM analysis for Ising CNN model.
-
-This script generates class activation maps to visualize what the CNN
-is paying attention to when classifying spin configurations across
-different temperatures. Shows Grad-CAM overlays with predictions.
-"""
-
 import argparse
 import numpy as np
 import torch
@@ -20,15 +12,12 @@ from src.models.cnn import IsingCNN
 
 
 class GradCAM:
-    """Gradient-weighted Class Activation Mapping."""
-    
     def __init__(self, model, target_layer):
         self.model = model
         self.target_layer = target_layer
         self.gradients = None
         self.activations = None
         
-        # Register hooks
         self.target_layer.register_forward_hook(self.save_activation)
         self.target_layer.register_backward_hook(self.save_gradient)
     
@@ -39,39 +28,21 @@ class GradCAM:
         self.gradients = grad_output[0].detach()
     
     def __call__(self, x, class_idx=None):
-        """
-        Generate Grad-CAM for input x.
-        
-        Args:
-            x: Input tensor (1, 1, H, W)
-            class_idx: Target class index (if None, use predicted class)
-        
-        Returns:
-            cam: Class activation map (H, W)
-        """
-        # Forward pass
         self.model.eval()
         output = self.model(x)
         
         if class_idx is None:
             class_idx = output.argmax(dim=1).item()
         
-        # Backward pass
         self.model.zero_grad()
         one_hot = torch.zeros_like(output)
         one_hot[0, class_idx] = 1
         output.backward(gradient=one_hot, retain_graph=True)
         
-        # Compute weights (global average pooling of gradients)
         weights = torch.mean(self.gradients, dim=(2, 3), keepdim=True)
-        
-        # Weighted combination of activation maps
         cam = torch.sum(weights * self.activations, dim=1, keepdim=True)
-        
-        # Apply ReLU (only positive influences)
         cam = F.relu(cam)
         
-        # Normalize to [0, 1]
         cam = cam.squeeze().cpu().numpy()
         if cam.max() > 0:
             cam = (cam - cam.min()) / (cam.max() - cam.min())
@@ -80,35 +51,18 @@ class GradCAM:
 
 
 def overlay_gradcam(image, cam, alpha=0.5):
-    """
-    Overlay Grad-CAM heatmap on image.
-    
-    Args:
-        image: Original image (H, W), values in [-1, 1]
-        cam: Grad-CAM activation map (H, W), values in [0, 1]
-        alpha: Transparency of overlay
-    
-    Returns:
-        overlay: RGB image with heatmap overlay
-    """
-    # Resize CAM to match image size
     from scipy.ndimage import zoom
     if cam.shape != image.shape:
         zoom_factors = (image.shape[0] / cam.shape[0], 
                        image.shape[1] / cam.shape[1])
         cam = zoom(cam, zoom_factors, order=1)
     
-    # Convert image to grayscale [0, 1]
     image_gray = (image + 1) / 2.0
-    
-    # Create RGB image
     rgb_image = np.stack([image_gray] * 3, axis=-1)
     
-    # Create heatmap (blue to red)
     cmap = plt.get_cmap('RdYlBu_r')
     heatmap = cmap(cam)[:, :, :3]
     
-    # Overlay
     overlay = alpha * heatmap + (1 - alpha) * rgb_image
     
     return overlay
@@ -128,22 +82,19 @@ def main():
                    help='Overlay transparency (0=only heatmap, 1=only image)')
     args = p.parse_args()
     
-    # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    # Load data
     print(f"Loading data from {args.data}...")
     data = load_npz(args.data)
-    X = data['X']  # spin configurations
-    T = data['T']  # temperatures
-    y_phase = data['y_phase']  # phase labels
+    X = data['X']
+    T = data['T']
+    y_phase = data['y_phase']
     Tc = float(data['Tc'])
     L = int(data['L'])
     
     print(f"Loaded {len(X)} configurations at lattice size L={L}")
     
-    # Split data to get test set
     rng = np.random.default_rng()
     idx = np.arange(len(X))
     rng.shuffle(idx)
@@ -152,14 +103,12 @@ def main():
     n_val = int(0.1 * n)
     test_indices = idx[n_train+n_val:]
     
-    # Use only test set for GradCAM visualization
     X = X[test_indices]
     T = T[test_indices]
     y_phase = y_phase[test_indices]
     
     print(f"Using {len(X)} test set samples for GradCAM visualization")
     
-    # Load model
     print(f"Loading model from {args.checkpoint}...")
     checkpoint = torch.load(args.checkpoint, map_location=device)
     model = IsingCNN(L=checkpoint['L']).to(device)
@@ -167,33 +116,25 @@ def main():
     model.eval()
     print("Model loaded successfully")
     
-    # Get target layer (last conv layer before pooling)
-    # In the sequential model: conv layers are at indices 0, 2, 6
-    target_layer = model.net[6]  # Conv2d(64, 128, 3, padding=1)
+    target_layer = model.net[6]
     
-    # Initialize Grad-CAM
     gradcam = GradCAM(model, target_layer)
     
-    # Select clean temperature values for display
     T_unique = np.sort(np.unique(T))
     T_min = T_unique.min()
     T_max = T_unique.max()
     
-    # Define clean target temperatures (nice round numbers)
     if args.n_temps == 3:
         clean_targets = [T_min, Tc, T_max]
     elif args.n_temps == 4:
         clean_targets = [T_min, (T_min + Tc) / 2, Tc, T_max]
     elif args.n_temps == 5:
-        # Use clean values like 1.5, 2.0, 2.25, 2.5, 3.5
         if T_min <= 1.5 and T_max >= 3.5:
             clean_targets = [1.5, 2.0, 2.25, 2.5, 3.5]
         else:
             clean_targets = [T_min, (T_min + Tc) / 2, Tc, (Tc + T_max) / 2, T_max]
     else:
-        # For more temps, use evenly spaced clean values
         if T_min <= 1.5 and T_max >= 3.5:
-            # Use 0.25 increments
             clean_targets = []
             t = 1.5
             while t <= 3.5 and len(clean_targets) < args.n_temps:
@@ -201,12 +142,10 @@ def main():
                 t += 0.25
             clean_targets = clean_targets[:args.n_temps]
         else:
-            # Custom range
             step = (T_max - T_min) / (args.n_temps - 1)
-            step = round(step * 4) / 4  # Round to 0.25
+            step = round(step * 4) / 4
             clean_targets = [round(T_min + i * step, 2) for i in range(args.n_temps)]
     
-    # Find closest actual temperatures to clean targets
     selected_Ts = []
     for target in clean_targets:
         closest_idx = np.argmin(np.abs(T_unique - target))
@@ -214,7 +153,6 @@ def main():
     
     selected_Ts = np.sort(np.unique(selected_Ts))
     
-    # If we don't have enough, fill with additional clean targets
     if len(selected_Ts) < args.n_temps:
         additional_targets = [1.75, 2.25, 2.75, 3.25] if T_min <= 1.5 and T_max >= 3.5 else []
         for target in additional_targets:
@@ -226,7 +164,6 @@ def main():
                     selected_Ts = np.append(selected_Ts, T_unique[closest_idx])
         selected_Ts = np.sort(selected_Ts)[:args.n_temps]
     
-    # For each temperature, pick a random sample
     selected_configs = []
     selected_labels = []
     cams = []
@@ -240,10 +177,8 @@ def main():
         config = X[idx]
         label = y_phase[idx]
         
-        # Prepare input tensor
         x_tensor = torch.from_numpy(config[None, None, :, :].astype(np.float32)).to(device)
         
-        # Generate Grad-CAM
         with torch.no_grad():
             pred_logits = model(x_tensor)
         pred_class = pred_logits.argmax(dim=1).item()
@@ -259,10 +194,8 @@ def main():
         correct = "✓" if pred_class == label else "✗"
         print(f"  T={temp:.2f}: Predicted={phase_name} {correct}")
     
-    # Create visualization
     print("\nCreating visualization...")
     
-    # Set style
     plt.rcParams.update({
         'font.size': 11,
         'axes.labelsize': 12,
@@ -273,7 +206,6 @@ def main():
         'text.usetex': False,
     })
     
-    # Single row with Grad-CAM overlays
     fig, axes = plt.subplots(1, args.n_temps, figsize=(3 * args.n_temps, 4.5), 
                              squeeze=False)
     axes = axes[0]  # Flatten to 1D array
@@ -283,17 +215,14 @@ def main():
         
         ax = axes[i]
         
-        # Determine phase names
         true_phase = "Ordered" if label == 1 else "Disordered"
         pred_phase = "Ordered" if pred == 1 else "Disordered"
         
-        # Create overlay
         overlay = overlay_gradcam(config, cam, alpha=args.alpha)
         ax.imshow(overlay, interpolation='nearest')
         ax.set_xticks([])
         ax.set_yticks([])
         
-        # Stacked title with temperature, true, pred, and check mark
         title_lines = [
             f"T={temp:.2f}",
             f"True: {true_phase}",
@@ -302,16 +231,12 @@ def main():
         title = "\n".join(title_lines)
         ax.set_title(title, fontsize=10, fontweight='bold', pad=10, linespacing=1.3)
         
-        # Add border
         for spine in ax.spines.values():
             spine.set_edgecolor('black')
             spine.set_linewidth(1.5)
     
-    # Force layout update to get correct axes positions
     plt.tight_layout(rect=[0, 0, 0.90, 1])
     
-    # Add colorbar for Grad-CAM matching height of configs
-    # Get position after tight_layout
     bbox_first = axes[0].get_position()
     
     cax = fig.add_axes([0.92, bbox_first.y0, 0.015, bbox_first.height])
@@ -323,7 +248,6 @@ def main():
                 labelpad=10)
     cb.ax.tick_params(labelsize=10)
     
-    # Save figure
     os.makedirs(args.outdir, exist_ok=True)
     output_path = os.path.join(args.outdir, 'gradcam_analysis.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight', 

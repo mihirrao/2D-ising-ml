@@ -1,10 +1,3 @@
-"""
-CNN Linear Probe: Extract embeddings, run PCA, and visualize PC1 vs PC2.
-
-This script freezes the trained CNN, extracts embeddings h(x) for all samples,
-runs PCA on the embeddings, and visualizes PC1 vs PC2 colored by phase, m, and e.
-"""
-
 import argparse
 import numpy as np
 import torch
@@ -32,22 +25,19 @@ def main():
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load data
     print(f"Loading data from {args.data}...")
     data = load_npz(args.data)
     X = data['X']
     m = data['m']
-    y_phase = data['y_phase']  # phase labels (0=disordered, 1=ordered)
-    e = data['e']  # energy per spin
+    y_phase = data['y_phase']
+    e = data['e']
     L = int(data['L'])
     
     print(f"Loaded {len(X)} configurations at lattice size L={L}")
     
-    # Check for cached embeddings
     cache_dir = os.path.join(args.outdir, '..', 'cache')
     os.makedirs(cache_dir, exist_ok=True)
     
-    # Create hash of checkpoint and data file paths for cache key
     checkpoint_hash = hashlib.md5(args.checkpoint.encode()).hexdigest()[:8]
     data_hash = hashlib.md5(args.data.encode()).hexdigest()[:8]
     cache_file = os.path.join(cache_dir, f'cnn_embeddings_{data_hash}_{checkpoint_hash}.npz')
@@ -58,34 +48,28 @@ def main():
         embeddings = cached['embeddings']
         print(f"Loaded cached embeddings of shape: {embeddings.shape}")
     else:
-        # Load model
         print(f"Loading model from {args.checkpoint}...")
         checkpoint = torch.load(args.checkpoint, map_location=device)
         model = IsingCNN(L=checkpoint['L']).to(device)
         model.load_state_dict(checkpoint['model'])
         model.eval()
         
-        # Freeze model and extract embeddings
         print("Extracting embeddings...")
         X_tensor = torch.from_numpy(X[:, None, :, :].astype(np.float32)).to(device)
         
         with torch.no_grad():
-            # Extract embeddings h(x) = model.net(x) (before classification head)
             embeddings = model.net(X_tensor).cpu().numpy()
         
         print(f"Extracted embeddings of shape: {embeddings.shape}")
         
-        # Save to cache
         print(f"Saving embeddings to cache: {cache_file}")
         np.savez(cache_file, embeddings=embeddings)
     
-    # Filter out dimensions with NaN or Inf values before PCA
     print("Filtering out invalid dimensions...")
     valid_mask = np.ones(embeddings.shape[1], dtype=bool)
     for dim in range(embeddings.shape[1]):
         if np.any(np.isnan(embeddings[:, dim])) or np.any(np.isinf(embeddings[:, dim])):
             valid_mask[dim] = False
-        # Also check for constant values (zero variance)
         elif np.std(embeddings[:, dim]) < 1e-9:
             valid_mask[dim] = False
     
@@ -101,7 +85,6 @@ def main():
         print(f"Error: Need at least 2 valid dimensions for PC1 vs PC2 plot, found {n_valid}")
         return
     
-    # Run PCA on embeddings
     print("\nRunning PCA on CNN embeddings...")
     scaler = StandardScaler()
     embeddings_scaled = scaler.fit_transform(embeddings_clean)
@@ -112,12 +95,10 @@ def main():
     print(f"  PC1 explains {explained_variance[0]:.2%} of variance")
     print(f"  PC2 explains {explained_variance[1]:.2%} of variance")
     
-    # Compute correlation with magnetization for PC1
     corr_pc1, pval_pc1 = pearsonr(embeddings_pca[:, 0], m)
     r2_pc1 = corr_pc1 ** 2
     print(f"  PC1 vs m: r={corr_pc1:.4f}, R²={r2_pc1:.4f}")
     
-    # Set publication-quality sans-serif style (matching VAE PCA)
     plt.rcParams.update({
         'font.size': 12,
         'axes.labelsize': 14,
@@ -129,20 +110,16 @@ def main():
         'text.usetex': False,
     })
     
-    # Get colors from RdYlBu_r colormap (same as VAE PCA)
     cmap = plt.get_cmap('RdYlBu_r')
-    blue_color = cmap(0.0)[:3]  # Blue from colormap
-    red_color = cmap(1.0)[:3]   # Red from colormap
+    blue_color = cmap(0.0)[:3]
+    red_color = cmap(1.0)[:3]
     
-    # Separate by phase label
     ordered_mask = y_phase == 1
     disordered_mask = y_phase == 0
     
-    # Create 3-panel plot: PC1 vs PC2 colored by phase, m, and e
     print("\nCreating PCA visualization: CNN PC1 vs PC2 (3 panels)...")
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
     
-    # Panel 1: Colored by phase (ordered/disordered)
     ax = axes[0]
     ax.scatter(embeddings_pca[ordered_mask, 0], embeddings_pca[ordered_mask, 1],
                marker='o', s=10, alpha=1.0, label='Ordered (T < Tc)',
@@ -156,10 +133,9 @@ def main():
               edgecolor='black')
     ax.grid(True, alpha=0.3, color='gray', linestyle=':')
     ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.tick_params(labelsize=12)
+        ax.spines['right'].set_visible(False)
+        ax.tick_params(labelsize=12)
     
-    # Panel 2: Colored by m value
     ax = axes[1]
     scatter = ax.scatter(embeddings_pca[:, 0], embeddings_pca[:, 1], c=m, marker='o', s=10,
                         alpha=1.0, cmap='viridis', edgecolors='none')
@@ -169,10 +145,9 @@ def main():
     cbar.set_label('Magnetization (m)', fontsize=12)
     ax.grid(True, alpha=0.3, color='gray', linestyle=':')
     ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.tick_params(labelsize=12)
+        ax.spines['right'].set_visible(False)
+        ax.tick_params(labelsize=12)
     
-    # Panel 3: Colored by E value
     ax = axes[2]
     scatter = ax.scatter(embeddings_pca[:, 0], embeddings_pca[:, 1], c=e, marker='o', s=10,
                         alpha=1.0, cmap='viridis', edgecolors='none')

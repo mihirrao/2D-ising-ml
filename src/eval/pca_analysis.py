@@ -1,10 +1,3 @@
-"""
-PCA analysis of Ising model dataset.
-
-This script performs Principal Component Analysis on spin configurations
-and visualizes the results with respect to phase labels and magnetization.
-"""
-
 import argparse
 import numpy as np
 import matplotlib
@@ -27,53 +20,44 @@ def main():
                    help='Number of principal components to compute')
     args = p.parse_args()
     
-    # Load data
     print(f"Loading data from {args.data}...")
     data = load_npz(args.data)
-    X = data['X']  # spin configurations (N, L, L)
-    T = data['T']  # temperatures
-    y_phase = data['y_phase']  # phase labels (0=disordered, 1=ordered)
-    m = data['m']  # magnetization per spin
-    e = data['e']  # energy per spin
+    X = data['X']
+    T = data['T']
+    y_phase = data['y_phase']
+    m = data['m']
+    e = data['e']
     L = int(data['L'])
     
     print(f"Loaded {len(X)} configurations at lattice size L={L}")
     
-    # Flatten configurations for PCA: (N, L, L) -> (N, L*L)
     N = X.shape[0]
-    X_flat = X.reshape(N, -1)  # (N, L*L)
+    X_flat = X.reshape(N, -1)
     
     print(f"Flattened configurations to shape: {X_flat.shape}")
     
-    # Standardize the data (mean=0, std=1)
     print("Standardizing data...")
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_flat)
     
-    # Perform PCA
     print(f"Performing PCA with {args.n_components} components...")
     pca = PCA(n_components=args.n_components)
     X_pca = pca.fit_transform(X_scaled)
     
-    # Get explained variance
     explained_variance = pca.explained_variance_ratio_
     cumulative_variance = np.cumsum(explained_variance)
     
     print(f"First 5 PCs explain {cumulative_variance[4]:.2%} of variance")
     print(f"First 10 PCs explain {cumulative_variance[9]:.2%} of variance")
     
-    # Compute correlation with magnetization for PC1
     print("Computing correlation with magnetization...")
     corr_pc1, pval_pc1 = pearsonr(X_pca[:, 0], m)
     r2_pc1 = corr_pc1 ** 2
     
-    # Get colors from RdYlBu_r colormap (same as gradcam analysis)
     cmap = plt.get_cmap('RdYlBu_r')
-    # RdYlBu_r is reversed: 0.0 = blue, 1.0 = red
-    blue_color = cmap(0.0)[:3]  # Blue from colormap
-    red_color = cmap(1.0)[:3]   # Red from colormap
+    blue_color = cmap(0.0)[:3]
+    red_color = cmap(1.0)[:3]
     
-    # Set publication-quality grayscale style
     plt.rcParams.update({
         'font.size': 12,
         'axes.labelsize': 14,
@@ -85,15 +69,12 @@ def main():
         'text.usetex': False,
     })
     
-    # PC1 vs PC2 scatter plot with 3 panels
     print("Creating PC1 vs PC2 scatter plot (3 panels)...")
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
     
-    # Separate by phase label
     ordered_mask = y_phase == 1
     disordered_mask = y_phase == 0
     
-    # Panel 1: Colored by phase (ordered/disordered)
     ax = axes[0]
     ax.scatter(X_pca[ordered_mask, 0], X_pca[ordered_mask, 1],
                marker='o', s=10, alpha=1.0, label='Ordered (T < Tc)',
@@ -108,10 +89,9 @@ def main():
     ax.set_ylabel(f'PC2 ({explained_variance[1]:.2%} variance)', fontsize=14)
     ax.grid(True, alpha=0.3, color='gray', linestyle=':')
     ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.tick_params(labelsize=12)
+        ax.spines['right'].set_visible(False)
+        ax.tick_params(labelsize=12)
     
-    # Panel 2: Colored by m value
     ax = axes[1]
     scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], c=m, marker='o', s=10, 
                         alpha=1.0, cmap='viridis', edgecolors='none')
@@ -122,10 +102,9 @@ def main():
     cbar.set_label('Magnetization (m)', fontsize=12)
     ax.grid(True, alpha=0.3, color='gray', linestyle=':')
     ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.tick_params(labelsize=12)
+        ax.spines['right'].set_visible(False)
+        ax.tick_params(labelsize=12)
     
-    # Panel 3: Colored by E value
     ax = axes[2]
     scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], c=e, marker='o', s=10, 
                         alpha=1.0, cmap='viridis', edgecolors='none')
@@ -147,7 +126,6 @@ def main():
     plt.close()
     print(f"✓ Saved PCA plot to: {output_path}")
     
-    # Separate plot: Magnetization vs PC1 (analogous to VAE latent1 vs m)
     print("\nCreating plot: Magnetization vs PC1...")
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     
@@ -171,7 +149,6 @@ def main():
     plt.close()
     print(f"✓ Saved PC1 vs m plot to: {output_path}")
     
-    # Print summary statistics
     print("\n" + "="*60)
     print("PCA Analysis Summary")
     print("="*60)

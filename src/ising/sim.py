@@ -8,8 +8,6 @@ def _neighbors_sum(spins: np.ndarray) -> np.ndarray:
     )
 
 def energy(spins: np.ndarray, J: float = 1.0, h: float = 0.0) -> float:
-    # E = -J sum_{<ij>} s_i s_j - h sum_i s_i
-    # using neighbor sum counts each bond twice -> divide by 2
     nn = _neighbors_sum(spins)
     E = -J * 0.5 * np.sum(spins * nn) - h * np.sum(spins)
     return float(E)
@@ -18,10 +16,6 @@ def magnetization(spins: np.ndarray) -> float:
     return float(np.sum(spins))
 
 def metropolis_sweep(spins: np.ndarray, beta: float, J: float = 1.0, h: float = 0.0, rng=None) -> None:
-    """
-    One Metropolis sweep: attempt N = L*L single-spin flips.
-    In-place updates.
-    """
     if rng is None:
         rng = np.random.default_rng()
     L = spins.shape[0]
@@ -32,7 +26,6 @@ def metropolis_sweep(spins: np.ndarray, beta: float, J: float = 1.0, h: float = 
         j = rng.integers(0, L)
         s = spins[i, j]
 
-        # local field from neighbors + external h
         nb = spins[(i+1) % L, j] + spins[(i-1) % L, j] + spins[i, (j+1) % L] + spins[i, (j-1) % L]
         dE = 2.0 * s * (J * nb + h)
 
@@ -40,10 +33,6 @@ def metropolis_sweep(spins: np.ndarray, beta: float, J: float = 1.0, h: float = 
             spins[i, j] = -s
 
 def wolff_update(spins: np.ndarray, beta: float, J: float = 1.0, rng=None) -> int:
-    """
-    Wolff cluster update for h=0 (standard).
-    Returns cluster size.
-    """
     if rng is None:
         rng = np.random.default_rng()
     L = spins.shape[0]
@@ -60,7 +49,6 @@ def wolff_update(spins: np.ndarray, beta: float, J: float = 1.0, rng=None) -> in
 
     while stack:
         i, j = stack.pop()
-        # neighbors with periodic BC
         nbs = [((i+1) % L, j), ((i-1) % L, j), (i, (j+1) % L), (i, (j-1) % L)]
         for ni, nj in nbs:
             if not cluster[ni, nj] and spins[ni, nj] == s0:
@@ -91,7 +79,6 @@ def sample_configs(
     beta = 1.0 / T
     spins = make_lattice(L, rng=rng)
 
-    # thermalize
     if method == "metropolis":
         for _ in range(n_therm):
             metropolis_sweep(spins, beta=beta, J=J, h=h, rng=rng)

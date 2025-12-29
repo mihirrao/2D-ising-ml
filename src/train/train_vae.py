@@ -1,9 +1,3 @@
-"""
-Train Variational Autoencoder for Ising model configurations.
-
-Trains VAE with different latent dimensions and generates analysis plots.
-"""
-
 import argparse
 import os
 import numpy as np
@@ -21,9 +15,9 @@ from src.models.vae import IsingVAE
 class NPZDataset(Dataset):
     def __init__(self, npz_path: str, split: str):
         d = load_npz(npz_path)
-        X = d["X"].astype(np.float32)  # (-1,+1)
+        X = d["X"].astype(np.float32)
 
-        # shuffle + split
+        rng = np.random.default_rng()
         rng = np.random.default_rng()
         idx = np.arange(len(X))
         rng.shuffle(idx)
@@ -47,18 +41,13 @@ class NPZDataset(Dataset):
     def __len__(self): return len(self.X)
 
     def __getitem__(self, i):
-        x = self.X[i][None, :, :]   # (1, L, L)
+        x = self.X[i][None, :, :]
         return torch.from_numpy(x)
 
 
 def vae_loss(recon, x, mu, logvar, beta=1.0):
-    """VAE loss: reconstruction + KL divergence."""
-    # Reconstruction loss (MSE)
     recon_loss = F.mse_loss(recon, x, reduction='sum')
-    
-    # KL divergence
     kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    
     return recon_loss + beta * kl_loss, recon_loss, kl_loss
 
 
@@ -80,7 +69,6 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Load data once
     train_ds = NPZDataset(args.data, "train")
     val_ds = NPZDataset(args.data, "val")
     test_ds = NPZDataset(args.data, "test")
@@ -88,7 +76,6 @@ def main():
     train_dl = DataLoader(train_ds, batch_size=args.batch, shuffle=True, num_workers=0)
     val_dl = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=0)
     
-    # Store results for all latent dimensions
     all_results = {}
     
     for latent_dim in args.latent_dims:
@@ -99,7 +86,6 @@ def main():
         model = IsingVAE(L=train_ds.L, latent_dim=latent_dim).to(device)
         opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
         
-        # Track metrics
         train_losses = []
         val_losses = []
         train_recon_losses = []
@@ -111,7 +97,6 @@ def main():
         patience_counter = 0
         
         for ep in range(1, args.epochs + 1):
-            # Training
             model.train()
             train_loss_sum = 0.0
             train_recon_sum = 0.0
@@ -142,7 +127,6 @@ def main():
             train_recon_losses.append(avg_train_recon)
             train_kl_losses.append(avg_train_kl)
             
-            # Validation
             model.eval()
             val_loss_sum = 0.0
             val_recon_sum = 0.0
@@ -171,7 +155,6 @@ def main():
             print(f"Epoch {ep}: train_loss={avg_train_loss:.4f} (recon={avg_train_recon:.4f}, kl={avg_train_kl:.4f}), "
                   f"val_loss={avg_val_loss:.4f} (recon={avg_val_recon:.4f}, kl={avg_val_kl:.4f})")
             
-            # Save best model
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
                 model_dir = os.path.join(args.outdir, f"latent_{latent_dim}")
@@ -186,7 +169,6 @@ def main():
             else:
                 patience_counter += 1
             
-            # Early stopping
             if args.early_stopping > 0 and patience_counter >= args.early_stopping:
                 print(f"\nEarly stopping triggered after {ep} epochs (patience={args.early_stopping})")
                 break
@@ -202,7 +184,6 @@ def main():
             'best_val_loss': best_val_loss
         }
         
-        # Evaluate best model on validation set per temperature
         print("Evaluating best model on validation set per temperature...")
         best_model_path = os.path.join(args.outdir, f"latent_{latent_dim}", "best.pt")
         best_checkpoint = torch.load(best_model_path, map_location=device)
@@ -210,13 +191,11 @@ def main():
         best_model.load_state_dict(best_checkpoint['model'])
         best_model.eval()
         
-        # Load full validation data with temperatures
         data_full = load_npz(args.data)
         X_full = data_full['X'].astype(np.float32)
         T_full = data_full['T']
         Tc = float(data_full['Tc'])
         
-        # Get validation indices
         rng = np.random.default_rng()
         idx = np.arange(len(X_full))
         rng.shuffle(idx)
@@ -228,7 +207,6 @@ def main():
         X_val = X_full[val_indices]
         T_val = T_full[val_indices]
         
-        # Compute loss per temperature
         T_unique = np.sort(np.unique(T_val))
         val_losses_temp = []
         T_plot = []
@@ -250,8 +228,6 @@ def main():
         val_losses_temp = np.array(val_losses_temp)
         T_plot = np.array(T_plot)
         
-        # Plot loss curves for this latent dimension (3 panels)
-        # Use the same model_dir that was created during training
         model_dir = os.path.join(args.outdir, f"latent_{latent_dim}")
         os.makedirs(model_dir, exist_ok=True)
         plot_path = os.path.join(model_dir, "loss_curves.png")
@@ -271,7 +247,6 @@ def main():
         
         epochs = range(1, len(train_losses) + 1)
         
-        # Panel 1: Total Loss
         ax1.plot(epochs, train_losses, 'k-', label='Training Loss', linewidth=2.0)
         ax1.plot(epochs, val_losses, 'k--', label='Validation Loss', linewidth=2.0, dashes=(5, 3))
         ax1.set_xlabel('Epoch', fontsize=14)
@@ -281,7 +256,6 @@ def main():
         ax1.spines['top'].set_visible(False)
         ax1.spines['right'].set_visible(False)
         
-        # Panel 2: Reconstruction Loss
         ax2.plot(epochs, train_recon_losses, 'k-', label='Train Recon', linewidth=2.0)
         ax2.plot(epochs, val_recon_losses, 'k--', label='Val Recon', linewidth=2.0, dashes=(5, 3))
         ax2.set_xlabel('Epoch', fontsize=14)
@@ -291,7 +265,6 @@ def main():
         ax2.spines['top'].set_visible(False)
         ax2.spines['right'].set_visible(False)
         
-        # Panel 3: KL Loss
         ax3.plot(epochs, train_kl_losses, 'k-', label='Train KL', linewidth=2.0)
         ax3.plot(epochs, val_kl_losses, 'k--', label='Val KL', linewidth=2.0, dashes=(5, 3))
         ax3.set_xlabel('Epoch', fontsize=14)
@@ -306,7 +279,6 @@ def main():
         plt.close()
         print(f"Loss curves saved to {plot_path}")
         
-        # Separate figure: Validation Loss vs Temperature
         loss_vs_temp_path = os.path.join(model_dir, "loss_vs_temp.png")
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
         

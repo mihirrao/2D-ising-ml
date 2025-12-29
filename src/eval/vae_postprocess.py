@@ -1,9 +1,3 @@
-"""
-VAE post-processing: Create specific plots for latent dimension analysis.
-- Plot 1: Latent dim 1 of zdim=1 vs m and latent dim 1 of zdim=4 vs m on same plot with R²
-- Plot 2: Latent dim 1 vs 2 for zdim=4
-"""
-
 import argparse
 import numpy as np
 import torch
@@ -31,7 +25,6 @@ def main():
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load data
     print(f"Loading data from {args.data}...")
     data = load_npz(args.data)
     X = data['X']
@@ -40,21 +33,17 @@ def main():
     m = data['m']
     L = int(data['L'])
     
-    # Use full dataset for visualizations (not just test set)
-    # Test set is only for performance metrics like loss/accuracy
     X_full = X
     m_full = m
     y_full = y_phase
-    e_full = data['e']  # Energy per spin
+    e_full = data['e']
     
     print(f"Using full dataset: {len(X_full)} samples")
     
-    # Load models and encode data (with caching)
     z_data = {}
     cache_dir = os.path.join(args.outdir, '..', 'cache')
     os.makedirs(cache_dir, exist_ok=True)
     
-    # Create hash of data file path for cache key
     data_hash = hashlib.md5(args.data.encode()).hexdigest()[:8]
     
     for latent_dim in [1, 4]:
@@ -64,11 +53,9 @@ def main():
             print(f"Warning: Checkpoint not found: {checkpoint_path}")
             continue
         
-        # Create cache file path
         checkpoint_hash = hashlib.md5(checkpoint_path.encode()).hexdigest()[:8]
         cache_file = os.path.join(cache_dir, f'vae_embeddings_latent{latent_dim}_{data_hash}_{checkpoint_hash}.npz')
         
-        # Check if cached embeddings exist
         if os.path.exists(cache_file):
             print(f"\nLoading cached embeddings for latent_dim={latent_dim}...")
             cached = np.load(cache_file)
@@ -89,7 +76,6 @@ def main():
                 z = model.reparameterize(mu, logvar)
                 z_np = z.cpu().numpy()
             
-            # Save to cache
             print(f"  Saving embeddings to cache: {cache_file}")
             np.savez(cache_file, embeddings=z_np)
             print(f"  Encoded {len(z_np)} samples")
@@ -98,7 +84,6 @@ def main():
     
     os.makedirs(args.outdir, exist_ok=True)
     
-    # Set publication-quality style (matching PCA analysis)
     plt.rcParams.update({
         'font.size': 12,
         'axes.labelsize': 14,
@@ -110,7 +95,6 @@ def main():
         'text.usetex': False,
     })
     
-    # Plot 1: Magnetization vs each of the 4 latent dimensions for zdim=4 (2x2 plot)
     if 4 in z_data:
         print("\nCreating plot: Magnetization vs each of 4 latent dimensions for zdim=4...")
         
@@ -143,7 +127,6 @@ def main():
         plt.close()
         print(f"✓ Saved to: {output_path}")
     
-        # Plot 2: All pairwise combinations of latent dimensions for zdim=4
     if 4 in z_data:
         print("\nCreating plot: All pairwise combinations of latent dimensions for zdim=4 (3 rows x 6 cols)...")
 
@@ -153,7 +136,6 @@ def main():
         ordered_mask = y_full == 1
         disordered_mask = y_full == 0
 
-        # Colors
         cmap_phase = plt.get_cmap('RdYlBu_r')
         blue_color = cmap_phase(0.0)[:3]
         red_color = cmap_phase(1.0)[:3]
@@ -167,7 +149,6 @@ def main():
             constrained_layout=True
         )
 
-        # Legend handles
         phase_handles = [
             Line2D([0], [0], marker='s', linestyle='None', markersize=14,
                    markerfacecolor=blue_color, markeredgecolor='black',
@@ -177,7 +158,6 @@ def main():
                    label='Disordered (T ≥ Tc)')
         ]
 
-        # ---------- ROW 1: PHASE ----------
         for col, (i, j) in enumerate(pairs):
             ax = axes[0, col]
 
@@ -200,7 +180,6 @@ def main():
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
 
-        # ---------- ROW 2: MAGNETIZATION ----------
         last_sc_m = None
         for col, (i, j) in enumerate(pairs):
             ax = axes[1, col]
@@ -221,7 +200,6 @@ def main():
         cbar_m = fig.colorbar(last_sc_m, ax=axes[1, :], fraction=0.02, pad=0.01)
         cbar_m.set_label("Magnetization (m)", fontsize=14)
 
-        # ---------- ROW 3: ENERGY ----------
         last_sc_e = None
         for col, (i, j) in enumerate(pairs):
             ax = axes[2, col]
@@ -246,10 +224,8 @@ def main():
         plt.close()
         print(f"✓ Saved to: {output_path}")
         
-        # Plot 3: PCA on VAE embeddings
         print("\nRunning PCA on VAE embeddings...")
         
-        # Standardize and perform PCA
         scaler = StandardScaler()
         z4_scaled = scaler.fit_transform(z4)
         pca = PCA(n_components=min(4, z4.shape[1]))
@@ -259,12 +235,10 @@ def main():
         print(f"  PC1 explains {explained_variance[0]:.2%} of variance")
         print(f"  PC2 explains {explained_variance[1]:.2%} of variance")
         
-        # Compute correlation with magnetization for PC1
         corr_pc1, pval_pc1 = pearsonr(z4_pca[:, 0], m_full)
         r2_pc1 = corr_pc1 ** 2
         print(f"  PC1 vs m: r={corr_pc1:.4f}, R²={r2_pc1:.4f}")
         
-        # Plot 3a: VAE PCA dim 1 vs m
         print("\nCreating plot: VAE PCA dim 1 vs m...")
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
         
@@ -287,12 +261,10 @@ def main():
         plt.close()
         print(f"✓ Saved to: {output_path}")
         
-        # Plot 3b: VAE PCA dim 1 vs dim 2 (3 panels: phase, m, E)
         print("\nCreating PCA-style plot: VAE PCA dim 1 vs dim 2 (3 panels)...")
         
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
         
-        # Panel 1: Colored by phase (ordered/disordered)
         ax = axes[0]
         ax.scatter(z4_pca[ordered_mask, 0], z4_pca[ordered_mask, 1],
                    marker='o', s=10, alpha=1.0, label='Ordered (T < Tc)',
@@ -309,7 +281,6 @@ def main():
         ax.spines['right'].set_visible(False)
         ax.tick_params(labelsize=12)
         
-        # Panel 2: Colored by m value
         ax = axes[1]
         scatter = ax.scatter(z4_pca[:, 0], z4_pca[:, 1], c=m_full, marker='o', s=10, 
                             alpha=1.0, cmap='viridis', edgecolors='none')
@@ -322,7 +293,6 @@ def main():
         ax.spines['right'].set_visible(False)
         ax.tick_params(labelsize=12)
         
-        # Panel 3: Colored by E value
         ax = axes[2]
         scatter = ax.scatter(z4_pca[:, 0], z4_pca[:, 1], c=e_full, marker='o', s=10, 
                             alpha=1.0, cmap='viridis', edgecolors='none')
