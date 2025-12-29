@@ -1,0 +1,14 @@
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.8
+tqdm>=4.66
+pyyaml>=6.0
+pandas>=2.1
+
+torch>=2.2
+torchvision>=0.17
+
+scikit-learn>=1.4
+
+# logging / experiment mgmt (optional but nice)
+tensorboard>=2.16
