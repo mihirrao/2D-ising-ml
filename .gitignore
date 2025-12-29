@@ -28,3 +28,14 @@ Thumbs.db
 # data/
 # results/
 
+# Cache files (can be regenerated, often very large)
+results/cache/
+*.npz
+!data/raw/*.npz
+
+# Large generated files
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
